@@ -1,5 +1,7 @@
 import { Router } from "express";
 import * as board from "../controllers/board.controller";
+import { exportBoardPdf } from "../controllers/export.controller";
+import { getActionItems } from "../controllers/ai.controller";
 import { asyncHandler } from "../utils/asyncHandler";
 import { requireAuth } from "../middleware/auth.middleware";
 import { resolveBoardAccess } from "../middleware/access.middleware";
@@ -33,5 +35,8 @@ router.post(
   resolveBoardAccess("owner", "editor"),
   asyncHandler(board.restoreVersion),
 );
+
+router.post("/:boardId/export/pdf", asyncHandler(exportBoardPdf));
+router.post("/:boardId/ai/action-items", asyncHandler(getActionItems));
 
 export { router, publicRouter };

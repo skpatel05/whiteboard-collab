@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@types/cookie-parser": "^1.4.10",
+    "@types/pdfkit": "^0.13.9",
     "bcryptjs": "^2.4.3",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
@@ -22,6 +23,7 @@
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.5.0",
     "nodemailer": "^6.9.14",
+    "pdfkit": "^0.15.2",
     "socket.io": "^4.7.5",
     "y-websocket": "^2.0.4",
     "yjs": "^13.6.15"
