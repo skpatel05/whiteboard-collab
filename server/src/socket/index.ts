@@ -2,6 +2,7 @@ import crypto from "crypto";
 import * as Y from "yjs";
 import type { Server, Socket } from "socket.io";
 import { User } from "../models/User";
+import { Board } from "../models/Board";
 import { WorkspaceRole } from "../models/Workspace";
 import { ApiError } from "../utils/ApiError";
 import { verifyAccessToken } from "../services/token.service";
@@ -70,7 +71,12 @@ function startFanout(): void {
 
   redisSub.on("pmessage", (_pattern, channel, raw) => {
     try {
-      const parsed = JSON.parse(raw) as { boardId: string; entry?: unknown; origin?: string };
+      const parsed = JSON.parse(raw) as {
+        boardId: string;
+        presence?: unknown[];
+        excludeSocketId?: string;
+        origin?: string;
+      };
       const boardId = parsed.boardId;
       if (!boardId) return;
 
@@ -81,13 +87,15 @@ function startFanout(): void {
           server.to(roomOf(boardId)).emit("board:update", parsed);
         }
       } else if (channel.startsWith("whiteboard:presence:")) {
-        if (!parsed.entry) return;
-        const entry = parsed.entry as { socketId: string };
+        if (!parsed.presence) return;
+        const exclude = parsed.excludeSocketId;
         for (const server of registeredServers) {
-          server.to(roomOf(boardId)).except(entry.socketId).emit("presence:update", {
-            boardId,
-            presence: [parsed.entry],
-          });
+          const broadcast = server.to(roomOf(boardId));
+          if (exclude) {
+            broadcast.except(exclude).emit("presence:update", { boardId, presence: parsed.presence });
+          } else {
+            broadcast.emit("presence:update", { boardId, presence: parsed.presence });
+          }
         }
       }
     } catch {
@@ -106,6 +114,9 @@ function base64FromUint8(uint8: Uint8Array): string {
 
 export function initSocket(io: IOServer): void {
   // --- Handshake auth: validate the access token before accepting the socket ---
+  // A valid user access token authenticates a member. Otherwise the token is
+  // treated as a public share link, which authenticates a guest with write
+  // access to that single board.
   io.use(async (socket, next) => {
     try {
       const token = socket.handshake.auth?.token as string | undefined;
@@ -113,17 +124,36 @@ export function initSocket(io: IOServer): void {
         next(new Error("unauthorized"));
         return;
       }
-      const payload = verifyAccessToken(token);
-      const user = await User.findById(payload.sub, { name: 1, email: 1 }).lean();
-      if (!user) {
+
+      try {
+        const payload = verifyAccessToken(token);
+        const user = await User.findById(payload.sub, { name: 1, email: 1, avatarColor: 1 }).lean();
+        if (!user) throw new Error("user not found");
+        socket.data.auth = {
+          id: String(user._id),
+          name: user.name,
+          email: user.email,
+        } satisfies SocketAuth;
+        socket.data.avatarColor = user.avatarColor;
+        next();
+        return;
+      } catch {
+        // Not a valid access token — fall through to the public share token.
+      }
+
+      const board = await Board.findOne({ "shareToken.token": token }).lean();
+      if (!board || !board.shareToken?.expiresAt || board.shareToken.expiresAt < new Date()) {
         next(new Error("unauthorized"));
         return;
       }
+      const boardId = String(board._id);
       socket.data.auth = {
-        id: String(user._id),
-        name: user.name,
-        email: user.email,
+        id: boardId,
+        name: "Guest",
+        email: "",
       } satisfies SocketAuth;
+      socket.data.shareBoardId = boardId;
+      socket.data.avatarColor = "#6366f1";
       next();
     } catch {
       next(new Error("unauthorized"));
@@ -132,7 +162,13 @@ export function initSocket(io: IOServer): void {
 
   io.on("connection", (rawSocket) => {
     const socket = rawSocket as IOSocket;
+    // Give share-token guests a distinct name so multiple guests are
+    // distinguishable in the presence layer.
+    if (socket.data.shareBoardId && socket.data.auth.name === "Guest") {
+      socket.data.auth = { ...socket.data.auth, name: `Guest ${socket.id.slice(-4)}` };
+    }
     const auth = socket.data.auth as SocketAuth;
+    const shareBoardId = socket.data.shareBoardId as string | undefined;
     const joinedBoards = new Set<string>();
 
     // --- Redis pub/sub: fan board+presence events across server instances ---
@@ -144,11 +180,20 @@ export function initSocket(io: IOServer): void {
 
     socket.on("board:join", async (boardId, cb) => {
       try {
-        const access = await getBoardAccess(boardId, auth.id);
-        if (!access.role) {
-          throw ApiError.notFound("Board not found");
+        let role: WorkspaceRole;
+        if (shareBoardId) {
+          // Guests authenticated via a share link may only join that board.
+          if (boardId !== shareBoardId) {
+            throw ApiError.notFound("Board not found");
+          }
+          role = "editor";
+        } else {
+          const access = await getBoardAccess(boardId, auth.id);
+          if (!access.role) {
+            throw ApiError.notFound("Board not found");
+          }
+          role = access.role;
         }
-        const role = access.role;
 
         socket.join(roomOf(boardId));
         joinedBoards.add(boardId);
@@ -266,12 +311,14 @@ export function initSocket(io: IOServer): void {
         x,
         y,
       });
-      const entry = boardPresenceSnapshot(boardId).find((p) => p.socketId === socket.id);
+      // Broadcast the authoritative full presence snapshot so clients can
+      // replace (never clobber) their local list on every update.
+      const presence = boardPresenceSnapshot(boardId);
       io.to(roomOf(boardId)).except(socket.id).emit("presence:update", {
         boardId,
-        presence: [entry],
+        presence,
       });
-      publish(presenceChannel(boardId), { boardId, entry });
+      publish(presenceChannel(boardId), { boardId, presence, excludeSocketId: socket.id });
     });
 
     socket.on("presence:request", (boardId) => {
@@ -284,12 +331,13 @@ export function initSocket(io: IOServer): void {
     socket.on("auth:refresh", async (token, cb) => {
       try {
         const payload = verifyAccessToken(token);
-        const user = await User.findById(payload.sub, { name: 1, email: 1 }).lean();
+        const user = await User.findById(payload.sub, { name: 1, email: 1, avatarColor: 1 }).lean();
         if (!user) {
           cb?.({ ok: false });
           return;
         }
         socket.data.auth = { id: String(user._id), name: user.name, email: user.email } satisfies SocketAuth;
+        socket.data.avatarColor = user.avatarColor;
         cb?.({ ok: true });
       } catch {
         cb?.({ ok: false });
@@ -320,6 +368,15 @@ async function authorizeWrite(
   socket: IOSocket,
 ): Promise<WorkspaceRole | null> {
   try {
+    const shareBoardId = socket.data.shareBoardId as string | undefined;
+    if (shareBoardId) {
+      // Share-link guests are always allowed to edit their shared board.
+      if (boardId !== shareBoardId) {
+        socket.emit("board:error", { code: "NOT_FOUND", message: "Board not found" });
+        return null;
+      }
+      return "editor";
+    }
     const access = await getBoardAccess(boardId, userId);
     if (!access.role) {
       socket.emit("board:error", { code: "NOT_FOUND", message: "Board not found" });

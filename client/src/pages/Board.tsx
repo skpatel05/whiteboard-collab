@@ -31,6 +31,7 @@ export default function BoardPage() {
   const cursorSentAtRef = useRef(0);
   const rejoiningRef = useRef(false);
   const presenceUserIdRef = useRef<string | null>(null);
+  const mySocketIdRef = useRef<string | null>(null);
 
   const [shapes, setShapes] = useState<Shape[]>([]);
   const [minutes, setMinutes] = useState("");
@@ -116,6 +117,7 @@ export default function BoardPage() {
       try {
         const state = await whiteboardSocket.joinBoard(boardIdRef.current);
         lastVersionRef.current = state.version;
+        mySocketIdRef.current = state.mySocketId;
         doc.applySnapshot(state.snapshot);
         whiteboardSocket.requestPresence(boardIdRef.current);
         await drain();
@@ -253,7 +255,9 @@ export default function BoardPage() {
     setSelectedId(null);
   }, [selectedId]);
 
-  const presenceCount = Object.keys(presenceEntries).filter((k) => presenceEntries[k].socketId).length;
+  const presenceCount = Object.values(presenceEntries).filter(
+    (e) => e.socketId && e.socketId !== mySocketIdRef.current,
+  ).length;
 
   return (
     <div className="flex h-full flex-col">
@@ -354,7 +358,7 @@ export default function BoardPage() {
             view={view}
             width={size.width}
             height={size.height}
-            mySocketId={null}
+            mySocketId={mySocketIdRef.current}
           />
         </div>
 

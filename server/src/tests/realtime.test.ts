@@ -245,6 +245,129 @@ describe("Presence", () => {
       a.disconnect();
     }
   });
+
+  it("carries the user's avatar color on presence entries", async () => {
+    const owner = await User.findOne({ email: "rt-owner@example.com" });
+    const a = await connect(ownerToken);
+    try {
+      await joinBoard(a, boardId);
+
+      const presencePromise = waitFor<{ presence: Array<{ socketId: string; avatarColor?: string }> }>(
+        a,
+        "presence:update",
+      );
+      a.emit("presence:request", boardId);
+      const { presence } = await presencePromise;
+      const own = presence.find((p) => p.socketId === a.id);
+      expect(own).toBeTruthy();
+      expect(own!.avatarColor).toBe(owner!.avatarColor);
+    } finally {
+      a.disconnect();
+    }
+  });
+
+  it("keeps every cursor visible when one user moves (full snapshot broadcast)", async () => {
+    const a = await connect(ownerToken);
+    const b = await connect(ownerToken);
+    try {
+      await Promise.all([joinBoard(a, boardId), joinBoard(b, boardId)]);
+
+      const presencePromise = waitFor<{ presence: Array<{ socketId: string; x: number }> }>(a, "presence:update");
+      b.emit("cursor:move", { boardId, x: 100, y: 200 });
+      const { presence } = await presencePromise;
+
+      // B's updated cursor is present…
+      expect(presence.some((p) => p.socketId === b.id && p.x === 100)).toBe(true);
+      // …and A's own entry was NOT clobbered by B's move.
+      expect(presence.some((p) => p.socketId === a.id)).toBe(true);
+    } finally {
+      a.disconnect();
+      b.disconnect();
+    }
+  });
+});
+
+describe("Public share links (realtime)", () => {
+  let shareToken: string;
+
+  beforeAll(async () => {
+    const share = await request(app)
+      .post(`/api/boards/${boardId}/share`)
+      .set("Authorization", `Bearer ${ownerToken}`)
+      .send({ expiresInDays: 7 });
+    shareToken = share.body.data.token;
+  });
+
+  it("lets a guest join via share token with editor role and write live", async () => {
+    const guest = await connect(shareToken);
+    try {
+      const statePromise = waitFor<{ role: string; myUserId: string }>(guest, "board:state");
+      await joinBoard(guest, boardId);
+      const state = await statePromise;
+      expect(state.role).toBe("editor");
+
+      const ack = new Promise<{ ok: boolean }>((resolve) => {
+        const doc = makeShapesDoc();
+        doc.getMap<unknown>("shapes").set("guestShape", { type: "rect", x: 5, y: 5, w: 50, h: 50 });
+        guest.emit(
+          "board:update",
+          { boardId, update: base64(Y.encodeStateAsUpdate(doc)), baseVersion: 0, clientId: 42 },
+          (res: { ok: boolean }) => resolve(res),
+        );
+      });
+      expect((await ack).ok).toBe(true);
+    } finally {
+      guest.disconnect();
+    }
+  });
+
+  it("broadcasts a guest's edit to an authenticated member in realtime", async () => {
+    const owner = await connect(ownerToken);
+    const guest = await connect(shareToken);
+    try {
+      await Promise.all([joinBoard(owner, boardId), joinBoard(guest, boardId)]);
+
+      const ownerGot = waitFor<{ update: string }>(owner, "board:update");
+      const doc = makeShapesDoc();
+      doc.getMap<unknown>("shapes").set("fromGuest", { shape: "rect" });
+      guest.emit("board:update", {
+        boardId,
+        update: base64(Y.encodeStateAsUpdate(doc)),
+        baseVersion: 0,
+        clientId: 5,
+      });
+
+      const msg = await ownerGot;
+      const ownerDoc = makeShapesDoc();
+      Y.applyUpdate(ownerDoc, fromBase64(msg.update));
+      expect(ownerDoc.getMap<unknown>("shapes").get("fromGuest")).toEqual({ shape: "rect" });
+    } finally {
+      owner.disconnect();
+      guest.disconnect();
+    }
+  });
+
+  it("rejects an invalid share token at the handshake", async () => {
+    await expect(connect("deadbeef00000000000000000000000000000000")).rejects.toThrow();
+  });
+
+  it("prevents a guest from joining a board other than its share link", async () => {
+    const other = await request(app)
+      .post("/api/boards")
+      .set("Authorization", `Bearer ${ownerToken}`)
+      .send({ workspaceId, title: "Other Board" });
+    const otherBoardId = other.body.data.board.id;
+
+    const guest = await connect(shareToken);
+    try {
+      const errPromise = waitFor<{ code: string }>(guest, "board:error");
+      await joinBoard(guest, otherBoardId).catch(() => undefined);
+      const err = await errPromise;
+      expect(err.code).toBe("NOT_FOUND");
+    } finally {
+      guest.disconnect();
+    }
+  });
 });
 
 describe("Reconnect", () => {

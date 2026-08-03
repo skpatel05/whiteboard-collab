@@ -31,7 +31,7 @@ export default function ShareModal({ boardId, onClose }: ShareModalProps) {
     void ensureLink();
   }, [ensureLink]);
 
-  const publicUrl = token ? `${window.location.origin}/api/boards/public/${token}` : null;
+  const publicUrl = token ? `${window.location.origin}/share/${token}` : null;
 
   const copy = async () => {
     if (!publicUrl) return;

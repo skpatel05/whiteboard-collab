@@ -6,6 +6,7 @@ import Register from "./pages/Register";
 import VerifyEmail from "./pages/VerifyEmail";
 import Dashboard from "./pages/Dashboard";
 import BoardPage from "./pages/Board";
+import PublicBoard from "./pages/PublicBoard";
 import Layout from "./components/Layout";
 
 function Protected({ children }: { children: React.ReactNode }) {
@@ -60,6 +61,7 @@ export default function App() {
         }
       />
       <Route path="/verify-email" element={<VerifyEmail />} />
+      <Route path="/share/:token" element={<PublicBoard />} />
       <Route element={<Protected><Layout /></Protected>}>
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/boards/:boardId" element={<BoardPage />} />

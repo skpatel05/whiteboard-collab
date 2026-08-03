@@ -113,12 +113,18 @@ export class WhiteboardSocket {
   joinBoard(boardId: string): Promise<BoardStatePayload> {
     return new Promise((resolve, reject) => {
       if (!this.socket) return reject(new Error("Socket not connected"));
+      // Resolve with the authoritative state delivered right after join.
+      const onState = (state: BoardStatePayload) => {
+        this.socket?.off("board:state", onState);
+        resolve(state);
+      };
+      this.socket.once("board:state", onState);
       this.socket.emit("board:join", boardId, (res: { ok: boolean; error?: string }) => {
         if (res.ok) return;
+        // Clean up the pending listener so a failed join can't resolve a later one.
+        this.socket?.off("board:state", onState);
         reject(new Error(res.error ?? "Failed to join board"));
       });
-      // Resolve with the authoritative state delivered right after join.
-      this.socket.once("board:state", resolve);
     });
   }
 
