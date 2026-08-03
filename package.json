@@ -1,0 +1,22 @@
+{
+  "name": "whiteboard-collab",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Collaborative real-time whiteboard & meeting notes platform",
+  "workspaces": [
+    "server",
+    "client"
+  ],
+  "scripts": {
+    "dev:server": "npm run dev --workspace server",
+    "dev:client": "npm run dev --workspace client",
+    "build": "npm run build --workspaces",
+    "test": "npm run test --workspaces --if-present",
+    "seed": "npm run seed --workspace server",
+    "docker:up": "docker compose up --build",
+    "docker:down": "docker compose down"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
