@@ -7,6 +7,9 @@ import { env } from "./config/env";
 import { errorHandler, notFoundHandler } from "./middleware/error.middleware";
 import { initSocket } from "./socket";
 import authRoutes from "./routes/auth.routes";
+import workspaceRoutes from "./routes/workspace.routes";
+import { publicRouter, router as boardRoutes } from "./routes/board.routes";import noteRoutes from "./routes/note.routes";
+import invitationRoutes from "./routes/invitation.routes";
 import { sendSuccess } from "./utils/response";
 
 export function createApp() {
@@ -27,6 +30,11 @@ export function createApp() {
   });
 
   app.use("/api/auth", authRoutes);
+  app.use("/api/workspaces", workspaceRoutes);
+  app.use("/api/boards", publicRouter);
+  app.use("/api/boards", boardRoutes);
+  app.use("/api/boards", noteRoutes);
+  app.use("/api/invitations", invitationRoutes);
 
   app.use(notFoundHandler);
   app.use(errorHandler);
