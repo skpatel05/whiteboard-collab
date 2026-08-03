@@ -1,0 +1,445 @@
+{
+  "info": {
+    "_postman_id": "a7f3c1d5-9e2b-4f6a-8b3c-5d1e7a9c4f21",
+    "name": "Whiteboard Collab API",
+    "description": "Collaborative real-time whiteboard & meeting notes platform. Base URL: http://localhost:4000/api (or http://localhost:3000/api behind nginx). Set the `baseUrl` and `accessToken` variables. Login stores the token automatically. Demo users (after `npm run seed`): owner@whiteboard.local / demo1234, collab@whiteboard.local / demo1234.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:4000/api" },
+    { "key": "accessToken", "value": "" },
+    { "key": "workspaceId", "value": "" },
+    { "key": "boardId", "value": "" },
+    { "key": "userId", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Register",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/auth/register", "host": ["{{baseUrl}}"], "path": ["auth", "register"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Ankita Sharma\",\n  \"email\": \"owner@whiteboard.local\",\n  \"password\": \"demo1234\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Verify email",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/auth/verify-email?token=TOKEN_FROM_DEV_LOGS", "host": ["{{baseUrl}}"], "path": ["auth", "verify-email"] }
+          }
+        },
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json && json.data && json.data.accessToken) {",
+                  "  pm.collectionVariables.set('accessToken', json.data.accessToken);",
+                  "  pm.collectionVariables.set('userId', json.data.user.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/auth/login", "host": ["{{baseUrl}}"], "path": ["auth", "login"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"owner@whiteboard.local\",\n  \"password\": \"demo1234\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Refresh",
+          "request": { "method": "POST", "url": { "raw": "{{baseUrl}}/auth/refresh", "host": ["{{baseUrl}}"], "path": ["auth", "refresh"] } }
+        },
+        {
+          "name": "Logout",
+          "request": { "method": "POST", "url": { "raw": "{{baseUrl}}/auth/logout", "host": ["{{baseUrl}}"], "path": ["auth", "logout"] } }
+        },
+        {
+          "name": "Me",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": { "raw": "{{baseUrl}}/auth/me", "host": ["{{baseUrl}}"], "path": ["auth", "me"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Workspaces",
+      "item": [
+        {
+          "name": "Create workspace",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json && json.data && json.data.workspace) {",
+                  "  pm.collectionVariables.set('workspaceId', json.data.workspace.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": { "raw": "{{baseUrl}}/workspaces", "host": ["{{baseUrl}}"], "path": ["workspaces"] },
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Product Team\",\n  \"description\": \"Cross-functional product squad\"\n}" }
+          }
+        },
+        {
+          "name": "List workspaces",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": { "raw": "{{baseUrl}}/workspaces", "host": ["{{baseUrl}}"], "path": ["workspaces"] }
+          }
+        },
+        {
+          "name": "Get workspace",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": { "raw": "{{baseUrl}}/workspaces/{{workspaceId}}", "host": ["{{baseUrl}}"], "path": ["workspaces", "{{workspaceId}}"] }
+          }
+        },
+        {
+          "name": "Update workspace",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": { "raw": "{{baseUrl}}/workspaces/{{workspaceId}}", "host": ["{{baseUrl}}"], "path": ["workspaces", "{{workspaceId}}"] },
+            "body": { "mode": "raw", "raw": "{\n  \"description\": \"Updated description\"\n}" }
+          }
+        },
+        {
+          "name": "Add member",
+          "event": [
+            {
+              "listen": "test",
+              "script": { "exec": ["const json = pm.response.json();", "if (json && json.data && json.data.userId) pm.collectionVariables.set('userId', json.data.userId);"] }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": { "raw": "{{baseUrl}}/workspaces/{{workspaceId}}/members", "host": ["{{baseUrl}}"], "path": ["workspaces", "{{workspaceId}}", "members"] },
+            "body": { "mode": "raw", "raw": "{\n  \"userId\": \"COLLAB_USER_ID\",\n  \"role\": \"viewer\"\n}" }
+          }
+        },
+        {
+          "name": "Update member role",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": { "raw": "{{baseUrl}}/workspaces/{{workspaceId}}/members/{{userId}}", "host": ["{{baseUrl}}"], "path": ["workspaces", "{{workspaceId}}", "members", "{{userId}}"] },
+            "body": { "mode": "raw", "raw": "{\n  \"role\": \"editor\"\n}" }
+          }
+        },
+        {
+          "name": "Remove member",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": { "raw": "{{baseUrl}}/workspaces/{{workspaceId}}/members/{{userId}}", "host": ["{{baseUrl}}"], "path": ["workspaces", "{{workspaceId}}", "members", "{{userId}}"] }
+          }
+        },
+        {
+          "name": "Invite by email",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": { "raw": "{{baseUrl}}/workspaces/{{workspaceId}}/invitations", "host": ["{{baseUrl}}"], "path": ["workspaces", "{{workspaceId}}", "invitations"] },
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"newmember@example.com\",\n  \"role\": \"viewer\"\n}" }
+          }
+        },
+        {
+          "name": "List invitations",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": { "raw": "{{baseUrl}}/workspaces/{{workspaceId}}/invitations", "host": ["{{baseUrl}}"], "path": ["workspaces", "{{workspaceId}}", "invitations"] }
+          }
+        },
+        {
+          "name": "Delete workspace",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": { "raw": "{{baseUrl}}/workspaces/{{workspaceId}}", "host": ["{{baseUrl}}"], "path": ["workspaces", "{{workspaceId}}"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Boards",
+      "item": [
+        {
+          "name": "Create board",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json && json.data && json.data.board) pm.collectionVariables.set('boardId', json.data.board.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": { "raw": "{{baseUrl}}/boards", "host": ["{{baseUrl}}"], "path": ["boards"] },
+            "body": { "mode": "raw", "raw": "{\n  \"workspaceId\": \"{{workspaceId}}\",\n  \"title\": \"Sprint Review — Q3 Planning\"\n}" }
+          }
+        },
+        {
+          "name": "List boards",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/boards?workspace={{workspaceId}}&search=plan&starred=false&sort=updated",
+              "host": ["{{baseUrl}}"],
+              "path": ["boards"]
+            }
+          }
+        },
+        {
+          "name": "Get board",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": { "raw": "{{baseUrl}}/boards/{{boardId}}", "host": ["{{baseUrl}}"], "path": ["boards", "{{boardId}}"] }
+          }
+        },
+        {
+          "name": "Update board",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": { "raw": "{{baseUrl}}/boards/{{boardId}}", "host": ["{{baseUrl}}"], "path": ["boards", "{{boardId}}"] },
+            "body": { "mode": "raw", "raw": "{\n  \"description\": \"Updated board description\"\n}" }
+          }
+        },
+        {
+          "name": "Star board",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": { "raw": "{{baseUrl}}/boards/{{boardId}}/star", "host": ["{{baseUrl}}"], "path": ["boards", "{{boardId}}", "star"] }
+          }
+        },
+        {
+          "name": "Unstar board",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": { "raw": "{{baseUrl}}/boards/{{boardId}}/star", "host": ["{{baseUrl}}"], "path": ["boards", "{{boardId}}", "star"] }
+          }
+        },
+        {
+          "name": "Touch board (recently viewed)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": { "raw": "{{baseUrl}}/boards/{{boardId}}/touch", "host": ["{{baseUrl}}"], "path": ["boards", "{{boardId}}", "touch"] }
+          }
+        },
+        {
+          "name": "Create share link",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": ["const json = pm.response.json();", "if (json && json.data && json.data.token) pm.collectionVariables.set('shareToken', json.data.token);"]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": { "raw": "{{baseUrl}}/boards/{{boardId}}/share", "host": ["{{baseUrl}}"], "path": ["boards", "{{boardId}}", "share"] }
+          }
+        },
+        {
+          "name": "Public board (no auth)",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/boards/public/{{shareToken}}", "host": ["{{baseUrl}}"], "path": ["boards", "public", "{{shareToken}}"] }
+          }
+        },
+        {
+          "name": "Revoke share link",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": { "raw": "{{baseUrl}}/boards/{{boardId}}/share", "host": ["{{baseUrl}}"], "path": ["boards", "{{boardId}}", "share"] }
+          }
+        },
+        {
+          "name": "List versions",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": { "raw": "{{baseUrl}}/boards/{{boardId}}/versions", "host": ["{{baseUrl}}"], "path": ["boards", "{{boardId}}", "versions"] }
+          }
+        },
+        {
+          "name": "Restore version",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": { "raw": "{{baseUrl}}/boards/{{boardId}}/versions/1/restore", "host": ["{{baseUrl}}"], "path": ["boards", "{{boardId}}", "versions", "1", "restore"] }
+          }
+        },
+        {
+          "name": "Export meeting summary PDF",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": { "raw": "{{baseUrl}}/boards/{{boardId}}/export/pdf", "host": ["{{baseUrl}}"], "path": ["boards", "{{boardId}}", "export", "pdf"] }
+          }
+        },
+        {
+          "name": "AI action items",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": { "raw": "{{baseUrl}}/boards/{{boardId}}/ai/action-items", "host": ["{{baseUrl}}"], "path": ["boards", "{{boardId}}", "ai", "action-items"] }
+          }
+        },
+        {
+          "name": "Delete board",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": { "raw": "{{baseUrl}}/boards/{{boardId}}", "host": ["{{baseUrl}}"], "path": ["boards", "{{boardId}}"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Notes",
+      "item": [
+        {
+          "name": "List notes",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": { "raw": "{{baseUrl}}/boards/{{boardId}}/notes?kind=minutes", "host": ["{{baseUrl}}"], "path": ["boards", "{{boardId}}", "notes"] }
+          }
+        },
+        {
+          "name": "Create note",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": ["const json = pm.response.json();", "if (json && json.data && json.data.note) pm.collectionVariables.set('noteId', json.data.note.id);"]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": { "raw": "{{baseUrl}}/boards/{{boardId}}/notes", "host": ["{{baseUrl}}"], "path": ["boards", "{{boardId}}", "notes"] },
+            "body": { "mode": "raw", "raw": "{\n  \"kind\": \"sticky\",\n  \"content\": \"Remember: demo first, then Q&A\",\n  \"x\": 120,\n  \"y\": 240,\n  \"color\": \"#fde68a\"\n}" }
+          }
+        },
+        {
+          "name": "Update note",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": { "raw": "{{baseUrl}}/boards/{{boardId}}/notes/{{noteId}}", "host": ["{{baseUrl}}"], "path": ["boards", "{{boardId}}", "notes", "{{noteId}}"] },
+            "body": { "mode": "raw", "raw": "{\n  \"content\": \"Updated sticky content\"\n}" }
+          }
+        },
+        {
+          "name": "Delete note",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": { "raw": "{{baseUrl}}/boards/{{boardId}}/notes/{{noteId}}", "host": ["{{baseUrl}}"], "path": ["boards", "{{boardId}}", "notes", "{{noteId}}"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Invitations",
+      "item": [
+        {
+          "name": "Accept invitation",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": { "raw": "{{baseUrl}}/invitations/INVITATION_TOKEN/accept", "host": ["{{baseUrl}}"], "path": ["invitations", "INVITATION_TOKEN", "accept"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Realtime (WebSocket)",
+      "item": [
+        {
+          "name": "Socket.IO handshake & board:join",
+          "request": {
+            "method": "GET",
+            "description": "Socket.IO events (use a WebSocket client): handshake with auth token, then emit 'board:join'. Server replies with 'board:state' containing the Yjs snapshot. Broadcasts 'board:update' to room members. Events: board:join, board:update, board:snapshot, cursor:move, presence:request, board:leave, auth:refresh.",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": {
+              "raw": "http://localhost:4000?token={{accessToken}}",
+              "host": ["http", "localhost", "4000"]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
