@@ -6,6 +6,7 @@ import { Note } from "../models/Note";
 import { User } from "../models/User";
 import { ApiError } from "../utils/ApiError";
 import { sendSuccess } from "../utils/response";
+import { invalidateBoardCache } from "../socket/document";
 import {
   requireBoardAccess,
   requireWorkspaceRole,
@@ -261,6 +262,9 @@ export async function restoreVersion(req: AuthenticatedRequest, res: Response): 
     { _id: boardId },
     { $set: { currentVersion: newVersion, lastSnapshotVersion: newVersion } },
   );
+
+  // Realtime clients must drop their in-memory doc and reload the restored state.
+  invalidateBoardCache(boardId);
 
   sendSuccess(res, { message: "Board restored", version: newVersion });
 }
