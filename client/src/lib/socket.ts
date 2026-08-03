@@ -35,6 +35,8 @@ export interface PresenceUpdate {
 }
 
 type WbEvents = {
+  connect: () => void;
+  disconnect: () => void;
   "board:state": (state: BoardStatePayload) => void;
   "board:update": (payload: BoardUpdatePayload) => void;
   "presence:update": (payload: PresenceUpdate) => void;
@@ -77,6 +79,21 @@ export class WhiteboardSocket {
 
   get connected(): boolean {
     return this.socket?.connected ?? false;
+  }
+
+  /** Resolves when a live socket connection is available (waits if needed). */
+  ensureConnected(): Promise<void> {
+    if (this.socket?.connected) return Promise.resolve();
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error("Socket connection timed out")), 8000);
+      const check = setInterval(() => {
+        if (this.socket?.connected) {
+          clearInterval(check);
+          clearTimeout(timer);
+          resolve();
+        }
+      }, 120);
+    });
   }
 
   refreshAuth(token: string): void {
