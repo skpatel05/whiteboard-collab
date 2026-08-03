@@ -14,7 +14,7 @@ export const env = {
   nodeEnv: process.env.NODE_ENV ?? "development",
   port: Number(process.env.PORT ?? 4000),
   mongoUri: required("MONGO_URI", "mongodb://localhost:27017/whiteboard"),
-  redisUrl: required("REDIS_URL", "redis://localhost:6379"),
+  redisUrl: process.env.REDIS_URL ?? "",
   clientOrigin: process.env.CLIENT_ORIGIN ?? "http://localhost:5173",
   jwt: {
     accessSecret: required("JWT_ACCESS_SECRET", "dev-access-secret-change-me"),
